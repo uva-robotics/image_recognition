@@ -12,15 +12,38 @@ import cv2
 import time
 
 from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
+
+class Recogniser ():
+    # INit
+    def __init__(self):
+        self.face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+        self.eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
+
+    def classify (self, img):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        cv2.imshow("Test", gray)
+        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+        for (x,y,w,h) in faces:
+            img = cv2.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
+            roi_gray = gray[y:y+h, x:x+w]
+            roi_color = img[y:y+h, x:x+w]
+            eyes = self.eye_cascade.detectMultiScale(roi_gray)
+            for (ex,ey,ew,eh) in eyes:
+                cv2.rectangle(roi_color,(ex,ey),(ex+ew,ey+eh),(0,255,0),2)
+        cv2.waitKey(1)
+        return img
 
 class VideoStreamer ():
     # INit
     def __init__(self, running_time = -1, filetype = "mp4"):
         self.subscriber = rospy.Subscriber("/pepper_robot/camera/front/image_raw", Image, self.callback)
+        self.bridge = CvBridge()
         self.running = False
         self.idle = True
         self.running_time = running_time
         self.extension = filetype
+        self.recogniser = Recogniser()
         print("VideoStreamer > Created")
 
     # Start
@@ -31,9 +54,10 @@ class VideoStreamer ():
             self.running = True
             self.first_time = True
             self.start_time = time.time()
+            self.out = "None"
 
             # Setup video reader
-            self.fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            self.fourcc = cv2.VideoWriter_fourcc(*'X264')
 
             print("VideoStreamer > Started successfully")
 
@@ -61,10 +85,21 @@ class VideoStreamer ():
             if self.first_time:
                 self.first_time = False
                 # Finish initing video codec
-                self.out = cv2.VideoWriter(output, self.fourcc, 20.0, (data.width, data.height))
+                self.out = cv2.VideoWriter("/home/tim/Desktop/output.mp4", self.fourcc, 24.0, (data.width, data.height))
+                print("VideoStreamer > Successfully inited videowriter")
 
             # Write away
-            self.buffer.append(data.data)
+            try:
+                cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+            except CvBridgeError as e:
+                print(e)
+
+            # Analyse the frame
+            self.out.write(cv_image)
+            recogniser_img = self.recogniser.classify(cv_image)
+            cv2.imshow("Img", recogniser_img)
+            cv2.waitKey(1)
+            #self.recogniser.classify(cv_image)
 
             self.idle = True
 
@@ -73,12 +108,11 @@ class VideoStreamer ():
         print("VideoStreamer > Closing...")
         if self.running:
             self.running = False
-            # Wait until idle
-            while not self.idle:
-                pass
-            # Close the file if open
-            if not self.file.closed:
-                self.file.close()
+            # Close video stream
+            if self.out != "None":
+                self.out.release()
+            cv2.destroyAllWindows()
+
             print("VideoStreamer > Closed successfully")
         else:
             print("VideoStreamer > Already closed")
@@ -87,8 +121,8 @@ class VideoStreamer ():
 if __name__ == '__main__':
     # Get arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--runtime", type=int, help="The time (in seconds) the script will run")
-    parser.add_argument("--filetype", help="The extension of the stream file (without .)")
+    parser.add_argument("-r", "--runtime", type=int, help="The time (in seconds) the script will run")
+    parser.add_argument("-f", "--filetype", help="The extension of the stream file (without .)")
     args = parser.parse_args()
 
     runtime = -1
