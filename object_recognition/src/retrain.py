@@ -12,54 +12,15 @@ import numpy as np
 import os
 import argparse
 import sys
+from progress_bar_27 import ProgressBar
 
-# Fancy, easy to use progress bar
-class ProgressBar():
-    # Init the class
-    def __init__(self, width=-1, min_amount=0, max_amount=99):
-        if width < 0:
-            _, width = os.popen('stty size', 'r').read().split()
-            width = int(width)
-        self.width = width - 10
-        self.step = min_amount
-        self.max_amount = max_amount
-
-    # Draw the progressbar
-    def draw (self):
-        percentage = self.step / self.max_amount
-        bar = " {:5.1f}% ".format(percentage * 100)
-        bar += "["
-        bar += "=" * (int(self.width * percentage))
-        bar += " " * ((self.width) - int(self.width * percentage))
-        bar += "]"
-        print bar + "\r",
-        if percentage >= 1:
-            # We're done
-            self.end()
-
-    # Only update step with amount
-    def update_only (self, amount=1):
-        self.step += amount
-
-    # Update step with amount and draw
-    def update (self, amount=1):
-        self.update_only(amount)
-        self.draw()
-
-    # Only sets step to amount
-    def set_only (self, amount):
-        self.step = amount
-
-    # Sets step to amount and draws
-    def set (self, amount):
-        self.set_only(amount)
-        self.draw()
-
-    # End the program
-    def end (self, clean=False, ending_character = "\n"):
-        if clean:
-            print " " * (self.width + 10) + "\r",
-        print ending_character,
+def print_line (text, end="\n", progress_bar = None):
+    # First, clear current line
+    print("\033[K\033[F")
+    # Now write the next line
+    print(text + end + "\033[F")
+    # Update progress_bar by none for ze draws
+    progress_bar.draw()
 
 def download_urls (urls, amount, width, height, path):
     print("\nPreparing for download...")
@@ -70,6 +31,7 @@ def download_urls (urls, amount, width, height, path):
     screen_width = int(screen_width)
 
     print("Downloading and resizing images...")
+    progress_bar = ProgressBar(max_amount = 1)
     check = False
     while counter < amount:
         for url in urls.split("\n"):
@@ -79,7 +41,7 @@ def download_urls (urls, amount, width, height, path):
                 if counter > amount:
                     # Done
                     break
-                print(" > Downloading image {}/{}...".format(counter, amount))
+                print_line(" > Downloading image {}/{}...".format(counter, amount))
                 f = urllib2.urlopen(url)
                 with open(path + str(counter) + ".jpg", "wb") as file:
                     file.write(f.read())
@@ -87,24 +49,79 @@ def download_urls (urls, amount, width, height, path):
 
                 img = cv2.imread(path + str(counter) + ".jpg",cv2.IMREAD_GRAYSCALE)
                 # The size of the image is twice that of the positive size
-                print("  - Compressing...")
+                print_line("  - Compressing...")
                 try:
                     resized_image = cv2.resize(img, (width, height))
                 except Exception as e:
-                    print("  - Could not resize image")
+                    print_line("  - Could not resize image")
                 else:
-                    print("  - Writing to disk...")
+                    print_line("  - Writing to disk...")
                     cv2.imwrite(path + str(counter) + ".jpg", resized_image)
 
                 compressed += 1
             except Exception as e:
-                print("  - {}".format(e))
+                print_line("  - {}".format(e))
+
+            # progress_bar
+            progress_bar.set(counter)
         if counter < amount:
             # We're not done yet:
-            print("Downloaded all images from this url. Please provide another:")
+            print_line("Downloaded all images from this url. Please provide another:")
             url = input()
             urls = urllib.urlopen(url).read().decode()
     print("Done (downloaded {} picture".format(downloads) + ("" if downloads == 1 else "s") + ", compressed {})".format(compressed))
+
+
+# Main file
+def main (positives_url, negatives_url, path, positives_amount, negatives_amount, width, height):
+    # Display welcoming message
+
+    print("\n################")
+    print("## RETRAIN.PY ##")
+    print("##    v1.0    ##")
+    print("################\n")
+
+    # Assemble missing data
+    if len(positives_url) == 0:
+        print("Enter the url to the synset of the positives:")
+        positives_url = input()
+    if len(negatives_url) == 0:
+        print("Enter the url to the synset of the negatives:")
+        negatives_url = input()
+    if len(path) == 0:
+        print("Enter the download path of the photos:")
+        path = input()
+
+    # Create new paths if it didn't
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    if path[-1] != "/":
+        path += "/"
+
+    print("Script is using:")
+    print(" > Positives URL: {}".format(positives_url))
+    print(" > Negatives URL: {}".format(negatives_url))
+    print(" > Path: {}".format(path))
+    print(" > No. of Positives: {}".format(positives_amount))
+    print(" > No. of Negatives: {}".format(negatives_amount))
+    print(" > Picture width: {}".format(width))
+    print(" > Picture height: {}".format(height))
+
+    # Now we have them, start downloading the URL list of the pictures
+    print("Retrieving URL lists...")
+    positives_urls = urllib2.urlopen(positives_url).read().decode()
+    negatives_urls = urllib2.urlopen(negatives_url).read().decode()
+    print("Done")
+
+    # Download the positive urls
+    if not os.path.exists(path + "positives/"):
+        os.makedirs(path + "positives/")
+    download_urls(positives_urls, positives_amount, width, height, path + "positives/")
+    # Download the negative urls
+    if not os.path.exists(path + "negatives/"):
+        os.makedirs(path + "negatives/")
+    download_urls(negatives_urls, negatives_amount, width * 2, height * 2, path + "negatives/")
 
 
 # Entry point
@@ -130,34 +147,10 @@ if __name__ == "__main__":
     height = 50
     if args.positives_url:
         positives_url = args.positives_url
-    else:
-        # Ask the user
-        print("Enter the url to the synset of the positives:")
-        positives_url = input()
     if args.negatives_url:
         negatives_url = args.negatives_url
-    else:
-        # Ask the user
-        print("Enter the url to the synset of the negatives:")
-        negatives_url = input()
     if args.path:
         path = args.path
-    else:
-        # Ask the user
-        print("Enter the download path of the photos:")
-        path = input()
-
-    if not os.path.exists(path):
-        os.makedirs(path)
-    if not os.path.exists(path + "positives/"):
-        os.makedirs(path + "positives/")
-    if not os.path.exists(path + "negatives/"):
-        os.makedirs(path + "negatives/")
-
-    if path[-1] != "/":
-        path += "/"
-
-    # Others
     if args.positives_amount:
         positives_amount = args.positives_amount
     if args.negatives_amount:
@@ -167,22 +160,9 @@ if __name__ == "__main__":
     if args.height:
         height = args.height
 
-    print("Script is using:")
-    print(" > Positives URL: {}".format(positives_url))
-    print(" > Negatives URL: {}".format(negatives_url))
-    print(" > Path: {}".format(path))
-    print(" > No. of Positives: {}".format(positives_amount))
-    print(" > No. of Negatives: {}".format(negatives_amount))
-    print(" > Picture width: {}".format(width))
-    print(" > Picture height: {}".format(height))
-
-    # Now we have them, start downloading the URL list of the pictures
-    print("Retrieving URL lists...")
-    positives_urls = urllib2.urlopen(positives_url).read().decode()
-    negatives_urls = urllib2.urlopen(negatives_url).read().decode()
-    print("Done")
-
-    # Download the positive urls
-    download_urls(positives_urls, positives_amount, width, height, path + "positives/")
-    # Download the negative urls
-    download_urls(negatives_urls, negatives_amount, width * 2, height * 2, path + "negatives/")
+    # Run main with KeyboardInterrupt handler
+    try:
+        main(positives_url, negatives_url, path, positives_amount, negatives_amount, width, height)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+        sys.exit()
