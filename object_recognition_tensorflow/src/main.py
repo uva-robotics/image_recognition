@@ -11,16 +11,27 @@
 ##  + Copied most content from object_recognition   ##
 ##  + Begun work on YOLO implementation             ##
 ######################################################
-## v0.1.1 (alpha):                                  ##
+## v0.1.1:                                          ##
 ##  o Very small bug-fix, but essential (returned   ##
 ##    'img' in temporary classify function)         ##
 ######################################################
-## v0.2.0 (alpha):                                  ##
+## v0.2.0:                                          ##
 ##  + Added welcoming message                       ##
 ##  o Changed program structure to modern (with     ##
 ##    main function and entry point)                ##
 ######################################################
-
+## v0.2.1:                                          ##
+##  o Attempt to implement YOLO using subprocess,   ##
+##    result pending                                ##
+######################################################
+## v0.2.2:                                          ##
+##  o Attempt to implement YOLO using subprocess,   ##
+##    one-at-a-time method (result pending)         ##
+######################################################
+## v0.2.3:                                          ##
+##  o Subprocess got complicated due to relative    ##
+##    paths, working on solution                    ##
+######################################################
 
 import rospy
 import argparse
@@ -40,10 +51,8 @@ class Recogniser ():
     # INit
     def __init__(self, darknet_path):
         self.name = "YOLO-Recogniser"
-        # Begin darknet
-        self.log("Preparing darknet (path: {})...".format(darknet_path + "darknet"))
-        self.process = subprocess.Popen([darknet_path + "darknet", "detect", darknet_path + "cfg/yolov3-tiny.cfg", darknet_path + "yolov3-tiny.weights"], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
-        self.log("Done, created")
+        self.darknet_path = darknet_path
+        self.log("Created")
 
     # Try to classify an image using YOLO
     def classify (self, img):
@@ -51,7 +60,8 @@ class Recogniser ():
         with open("/home/lut_99/Desktop/to_classify.jpg") as f:
             cv2.imwrite("/home/lut_99/Desktop/to_classify.jpg", img)
         # Communicate with darknet_path to run
-        result, errors = self.process.communicate("/home/lut_99/Desktop/to_classify.jpg")
+        process = subprocess.Popen([self.darknet_path + "darknet", self.darknet_path + "cfg/yolov3-tiny.cfg", self.darknet_path + "yolov3-tiny.weights", "/home/lut_99/Desktop/to_classify.jpg"], stdout=subprocess.PIPE)
+        result, errors = process.communicate()
         self.log("Succesfully classified:")
         print(result)
         sys.exit()
@@ -152,8 +162,6 @@ class VideoStreamer ():
             # Close video stream
             if self.out != "None":
                 self.out.release()
-            # Stop recogniser
-            self.recogniser.process.kill()
             cv2.destroyAllWindows()
 
             self.log("Closed successfully")
@@ -193,7 +201,7 @@ def main (runtime, framerate, mode, darknet_path):
     print("\n########################")
     print("## OBJECT RECOGNITION ##")
     print("##     USING YOLO     ##")
-    print("##   v0.2.0 (alpha)   ##")
+    print("##   v0.2.3 (alpha)   ##")
     print("########################\n")
 
     # Show some data
