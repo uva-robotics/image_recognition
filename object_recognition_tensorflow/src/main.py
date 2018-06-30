@@ -11,6 +11,15 @@
 ##  + Copied most content from object_recognition   ##
 ##  + Begun work on YOLO implementation             ##
 ######################################################
+## v0.1.1 (alpha):                                  ##
+##  o Very small bug-fix, but essential (returned   ##
+##    'img' in temporary classify function)         ##
+######################################################
+## v0.2.0 (alpha):                                  ##
+##  + Added welcoming message                       ##
+##  o Changed program structure to modern (with     ##
+##    main function and entry point)                ##
+######################################################
 
 
 import rospy
@@ -20,6 +29,7 @@ import cv2
 import time
 import threading
 import decimal
+import sys
 
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -159,6 +169,32 @@ class VideoStreamerFile ():
 
         self.log("Completed successfully")
 
+
+# Main
+def main (runtime, framerate, mode):
+    # Do welcoming message
+    print("\n########################")
+    print("## OBJECT RECOGNITION ##")
+    print("##     USING YOLO     ##")
+    print("##   v0.2.0 (alpha)   ##")
+    print("########################\n")
+
+    # Show some data
+    print("USING:")
+    print("  - Runtime:   {}s".format(runtime if runtime > -1 else u"\u221E".encode("utf-8")))
+    print("  - Framerate: {}fps".format(framerate))
+    print("  - Mode:      {}\n".format(mode))
+
+    # Init ROS
+    rospy.init_node('object_recognition')
+
+    # Start the streamer
+    if mode == "***PEPPER-CAMERA***":
+        streamer = VideoStreamer(runtime, framerate)
+    else:
+        streamer = VideoStreamerFile(mode)
+    streamer.start()
+
 # Entry point
 if __name__ == '__main__':
     # Get arguments
@@ -178,12 +214,8 @@ if __name__ == '__main__':
     if args.inputfile:
         mode = args.inputfile
 
-    # Init ROS
-    rospy.init_node('object_recognition')
-
-    # Start the streamer
-    if mode == "***PEPPER-CAMERA***":
-        streamer = VideoStreamer(runtime, framerate)
-    else:
-        streamer = VideoStreamerFile(mode)
-    streamer.start()
+    try:
+        main(runtime, framerate, mode)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+        sys.exit()
