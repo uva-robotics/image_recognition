@@ -29,8 +29,8 @@ from cv_bridge import CvBridge, CvBridgeError
 ##  + Added that the program prints the starting    ##
 ##    time (HH:mm:ss), for reference                ##
 ######################################################
-## v1.0 (release):                                  ##
-##  + Finilized code                                ##
+## v1.0.0 (release):                                ##
+##  o Finilized code                                ##
 ##  o Switched dev status to 'release'              ##
 ######################################################
 
@@ -41,7 +41,7 @@ def main (topic, timeout):
     # Welcoming message
     print("\n###################")
     print("## WEBCAM BRIDGE ##")
-    print("##     v 0.3     ##")
+    print("##    v 1.0.0    ##")
     print("###################\n")
 
     print("Timeout:             {}s".format(timeout if timeout > -1 else u"\u221E".encode("utf-8")))
