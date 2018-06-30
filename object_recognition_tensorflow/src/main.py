@@ -33,6 +33,7 @@ class Recogniser ():
     # Try to classify an image using YOLO
     def classify (self, img):
         print("WIP")
+        return img
 
 # Class for streaming video from pepper
 class VideoStreamer ():
