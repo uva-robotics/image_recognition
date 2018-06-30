@@ -5,6 +5,14 @@
 #
 # Object recognition for Pepper (uses ROS)
 
+##################### CHANGE LOG #####################
+## v0.1 (alpha):                                    ##
+##  + Begun alpha development                       ##
+##  + Copied most content from object_recognition   ##
+##  + Begun work on YOLO implementation             ##
+######################################################
+
+
 import rospy
 import argparse
 import numpy as np
@@ -20,28 +28,11 @@ from cv_bridge import CvBridge, CvBridgeError
 class Recogniser ():
     # INit
     def __init__(self):
-        self.face_cascade = cv2.CascadeClassifier('/projects/uva-robotics/src/image_recognition/object_recognition/src/haarcascade_frontalface_default.xml')
-        self.eye_cascade = cv2.CascadeClassifier('/projects/uva-robotics/src/image_recognition/object_recognition/src/haarcascade_eye.xml')
-
-    # Use both face_cascade and eye_cascade to recognise face and then eyes
-    def classify (self, img):
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        cv2.imshow("Test", img)
-        # Try to detect faces
-        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
-        for (x,y,w,h) in faces:
-            img = cv2.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
-            roi_gray = gray[y:y+h, x:x+w]
-            roi_color = img[y:y+h, x:x+w]
-            # Try to detect eyes
-            eyes = self.eye_cascade.detectMultiScale(roi_gray)
-            for (ex,ey,ew,eh) in eyes:
-                cv2.rectangle(roi_color,(ex,ey),(ex+ew,ey+eh),(0,255,0),2)
-        return img
-
-    # We'll need 64 bit for this, unfortunately, so let's put a hold on it for now
-    def classify_vg16 (self):
         pass
+
+    # Try to classify an image using YOLO
+    def classify (self, img):
+        print("WIP")
 
 # Class for streaming video from pepper
 class VideoStreamer ():
