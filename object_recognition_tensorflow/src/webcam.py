@@ -29,16 +29,20 @@ from cv_bridge import CvBridge, CvBridgeError
 ##  + Added that the program prints the starting    ##
 ##    time (HH:mm:ss), for reference                ##
 ######################################################
+## v1.0 (release):                                  ##
+##  + Finilized code                                ##
+##  o Switched dev status to 'release'              ##
+######################################################
 
 
 
 # Some nice wrapping
 def main (topic, timeout):
     # Welcoming message
-    print("\n####################")
-    print("## WEBCAME BRIDGE ##")
-    print("##      v0.1      ##")
-    print("####################\n")
+    print("\n###################")
+    print("## WEBCAM BRIDGE ##")
+    print("##     v 0.3     ##")
+    print("###################\n")
 
     print("Timeout:             {}s".format(timeout if timeout > -1 else u"\u221E".encode("utf-8")))
     print("Publishing on topic: {}\n".format(topic))
