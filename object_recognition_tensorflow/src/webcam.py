@@ -33,42 +33,60 @@ from cv_bridge import CvBridge, CvBridgeError
 ##  o Finilized code                                ##
 ##  o Switched dev status to 'release'              ##
 ######################################################
+## v1.1.0:                                          ##
+##  + Added option to stream video to file instead  ##
+##    of ROS topic                                  ##
+######################################################
+## v1.1.1:                                          ##
+##  o Fixed bug that the script would attempt to    ##
+##    close VideoWriter when it didn't use it       ##
+######################################################
 
 
 
 # Some nice wrapping
-def main (topic, timeout):
+def main (topic, timeout, path):
     # Welcoming message
     print("\n###################")
     print("## WEBCAM BRIDGE ##")
-    print("##    v 1.0.0    ##")
+    print("##    v 1.1.1    ##")
     print("###################\n")
 
     print("Timeout:             {}s".format(timeout if timeout > -1 else u"\u221E".encode("utf-8")))
     print("Publishing on topic: {}\n".format(topic))
 
-    # Create node, init ROS
-    rospy.init_node("WebCamBridge")
-
-    publisher = rospy.Publisher(topic, Image, queue_size=10)
-
-    # Create openCV with webcame
+    # Create openCV with webcam
     cap = cv2.VideoCapture(0)
+
+    # Prepare streaming
+    if len(path) == 0:
+        rospy.init_node("WebCamBridge")
+        publisher = rospy.Publisher(topic, Image, queue_size=10)
+    else:
+        fourcc = cv2.VideoWriter_fourcc(*'X264')
+        width = cap.get(3)
+        height = cap.get(4)
+        writer = cv2.VideoWriter(path, fourcc, 30.0, (int(width), int(height)))
+
+    # Do the bridge
     bridge = CvBridge()
 
     print("Started capture" + (time.strftime(" (%H:%M:%S)") if timeout > -1 else ""))
 
     then = time.time()
-    last_second = -1
     while cap.isOpened():
         try:
             ret, frame = cap.read()
             if ret:
-                # Now use CvBridhe to convert to img
                 try:
-                    to_send = bridge.cv2_to_imgmsg(frame, 'bgr8')
-                    # Publish
-                    publisher.publish(to_send)
+                    # Stream
+                    if len(path) == 0:
+                        # Use CvBridge to convert to img
+                        to_send = bridge.cv2_to_imgmsg(frame, 'bgr8')
+                        publisher.publish(to_send)
+                    else:
+                        # Write instead
+                        writer.write(frame)
                 except CvBridgeError as e:
                     print(e)
             if timeout > -1 and time.time() - then > timeout:
@@ -79,6 +97,8 @@ def main (topic, timeout):
             break
 
     print("Stopping capture...")
+    if len(path) > 0:
+        writer.release()
     cap.release()
     cv2.destroyAllWindows()
 
@@ -89,18 +109,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-to", "--topic", help="The name of the topic that the webcam data will be published on.")
     parser.add_argument("-ti", "--timeout", type=int, help="The amount of seconds the program will run before quitting. To set for endless, use -1 (NOT RECOMMENDED)")
+    parser.add_argument("-p", "--path", help="If given, will output the stream to a file specified in the given path (will not publish)")
     args = parser.parse_args()
 
     topic = "/image_raw"
     timeout = 30
+    path = ""
     if args.topic:
         topic = args.topic
     if args.timeout:
         timeout = args.timeout
+    if args.path:
+        path = args.path
 
     # Run main with KeyboardInterrupt handler
     try:
-        main(topic, timeout)
+        main(topic, timeout, path)
     except KeyboardInterrupt:
         print("\nInterrupted by user")
         sys.exit()
