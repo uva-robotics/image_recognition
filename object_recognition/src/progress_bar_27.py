@@ -75,6 +75,13 @@ class ProgressBar():
         if self.step < self.max_amount:
             self.draw_timed()
 
+    # Updates preceding text
+    def update_preceding_text (self, new_text):
+        self.preceding_text = new_text
+        self.width = self.total_width - 10 - len(self.preceding_text)
+        self.draw()
+
+
     # End the program
     def end (self, clean=False, ending_character = "\n"):
         if clean:
