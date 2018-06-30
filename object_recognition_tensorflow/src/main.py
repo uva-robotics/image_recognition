@@ -30,6 +30,7 @@ import time
 import threading
 import decimal
 import sys
+import subprocess
 
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -37,24 +38,38 @@ from cv_bridge import CvBridge, CvBridgeError
 # Class for recognising objects (although it does faces, for now)
 class Recogniser ():
     # INit
-    def __init__(self):
-        pass
+    def __init__(self, darknet_path):
+        self.name = "YOLO-Recogniser"
+        # Begin darknet
+        self.log("Preparing darknet (path: {})...".format(darknet_path + "darknet"))
+        self.process = subprocess.Popen([darknet_path + "darknet", "detect", darknet_path + "cfg/yolov3-tiny.cfg", darknet_path + "yolov3-tiny.weights"], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+        self.log("Done, created")
 
     # Try to classify an image using YOLO
     def classify (self, img):
-        print("WIP")
-        return img
+        # Write image to a local buffer
+        with open("/home/lut_99/Desktop/to_classify.jpg") as f:
+            cv2.imwrite("/home/lut_99/Desktop/to_classify.jpg", img)
+        # Communicate with darknet_path to run
+        result, errors = self.process.communicate("/home/lut_99/Desktop/to_classify.jpg")
+        self.log("Succesfully classified:")
+        print(result)
+        sys.exit()
+
+    # Log data on the output
+    def log (self, text):
+        print("{} > {}".format(self.name, text))
 
 # Class for streaming video from pepper
 class VideoStreamer ():
     # INit
-    def __init__(self, running_time = -1, framerate = 10.0, frameskip=False):
+    def __init__(self, running_time = -1, framerate = 10.0, frameskip=False, darknet_path=""):
         self.subscriber = rospy.Subscriber("/pepper_robot/camera/front/image_raw", Image, self.callback)
         self.bridge = CvBridge()
         self.running = False
         self.idle = True
         self.running_time = running_time
-        self.recogniser = Recogniser()
+        self.recogniser = Recogniser(darknet_path)
         self.framerate = framerate
         self.frameskip = frameskip
         self.name = "VideoStreamer"
@@ -137,6 +152,8 @@ class VideoStreamer ():
             # Close video stream
             if self.out != "None":
                 self.out.release()
+            # Stop recogniser
+            self.recogniser.process.kill()
             cv2.destroyAllWindows()
 
             self.log("Closed successfully")
@@ -171,7 +188,7 @@ class VideoStreamerFile ():
 
 
 # Main
-def main (runtime, framerate, mode):
+def main (runtime, framerate, mode, darknet_path):
     # Do welcoming message
     print("\n########################")
     print("## OBJECT RECOGNITION ##")
@@ -181,16 +198,17 @@ def main (runtime, framerate, mode):
 
     # Show some data
     print("USING:")
-    print("  - Runtime:   {}s".format(runtime if runtime > -1 else u"\u221E".encode("utf-8")))
-    print("  - Framerate: {}fps".format(framerate))
-    print("  - Mode:      {}\n".format(mode))
+    print("  - Runtime:         {}s".format(runtime if runtime > -1 else u"\u221E".encode("utf-8")))
+    print("  - Framerate:       {}fps".format(framerate))
+    print("  - Mode:            {}".format(mode))
+    print("  - Path to darknet: {}\n".format(darknet_path))
 
     # Init ROS
     rospy.init_node('object_recognition')
 
     # Start the streamer
     if mode == "***PEPPER-CAMERA***":
-        streamer = VideoStreamer(runtime, framerate)
+        streamer = VideoStreamer(runtime, framerate, darknet_path=darknet_path)
     else:
         streamer = VideoStreamerFile(mode)
     streamer.start()
@@ -202,20 +220,28 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--runtime", type=int, help="The time (in seconds) the script will run")
     parser.add_argument("-f", "--framerate", help="The framerate of the output file")
     parser.add_argument("-i", "--inputfile", help="The file that is to be used. Leave empty to use Pepper's camera")
+    parser.add_argument("-p", "--darknet_path", help="The path to darknet (folder)")
     args = parser.parse_args()
 
     runtime = -1
     framerate = 10.0
     mode = "***PEPPER-CAMERA***"
+    darknet_path = "/VirtualShare/darknet/"
     if args.runtime:
         runtime = args.runtime
     if args.framerate:
         framerate = args.framerate
     if args.inputfile:
         mode = args.inputfile
+    if args.darknet_path:
+        darknet_path = args.darknet_path
+
+    # Make sure darknet_path is concluded with "/"
+    if darknet_path[-1] != "/":
+        darknet_path += "/"
 
     try:
-        main(runtime, framerate, mode)
+        main(runtime, framerate, mode, darknet_path)
     except KeyboardInterrupt:
         print("\nInterrupted by user")
         sys.exit()
