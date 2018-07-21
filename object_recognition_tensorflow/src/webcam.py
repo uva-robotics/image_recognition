@@ -41,6 +41,10 @@ from cv_bridge import CvBridge, CvBridgeError
 ##  o Fixed bug that the script would attempt to    ##
 ##    close VideoWriter when it didn't use it       ##
 ######################################################
+## v1.1.2:                                          ##
+##  + Added feedback for when webcam is             ##
+##    suspiciously shortly open                     ##
+######################################################
 
 
 
@@ -95,6 +99,7 @@ def main (topic, timeout, path):
             cv2.waitKey(1)
         except KeyboardInterrupt:
             break
+    end = time.time()
 
     print("Stopping capture...")
     if len(path) > 0:
@@ -103,6 +108,9 @@ def main (topic, timeout, path):
     cv2.destroyAllWindows()
 
     print("Done.")
+
+    if (timeout == -1 or timeout > 0.1) and end - then < 0.1:
+        print("Could not read webcam (is it connected?)")
 
 # Entry point
 if __name__ == "__main__":
