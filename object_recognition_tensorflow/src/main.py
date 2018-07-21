@@ -6,7 +6,7 @@
 # Object recognition for Pepper (uses ROS)
 
 ##################### CHANGE LOG #####################
-## v0.1 (alpha):                                    ##
+## v0.1.0 (alpha):                                  ##
 ##  + Begun alpha development                       ##
 ##  + Copied most content from object_recognition   ##
 ##  + Begun work on YOLO implementation             ##
@@ -32,6 +32,14 @@
 ##  o Subprocess got complicated due to relative    ##
 ##    paths, working on solution                    ##
 ######################################################
+## v0.2.4:                                          ##
+##  o Attempted to implement YOLO using lightnet.   ##
+##    Result pending                                ##
+######################################################
+## v0.3.0:                                          ##
+##  + Added
+##  o YOLO succes                                   ##
+######################################################
 
 import rospy
 import argparse
@@ -42,49 +50,73 @@ import threading
 import decimal
 import sys
 import subprocess
+import lightnet
 
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 
-# Class for recognising objects (although it does faces, for now)
+COLORS = [
+    (255, 0, 0),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 255, 0),
+    (255, 0, 255),
+    (0, 255, 255)
+]
+
+# Class for recognising objects
 class Recogniser ():
     # INit
-    def __init__(self, darknet_path):
+    def __init__(self):
         self.name = "YOLO-Recogniser"
-        self.darknet_path = darknet_path
+
+        self.log("Loading weights...")
+        self.model = lightnet.load("yolo")
+
         self.log("Created")
 
     # Try to classify an image using YOLO
     def classify (self, img):
-        # Write image to a local buffer
+        # For now, let's save the file to a buffer first
         with open("/home/lut_99/Desktop/to_classify.jpg") as f:
             cv2.imwrite("/home/lut_99/Desktop/to_classify.jpg", img)
-        # Communicate with darknet_path to run
-        process = subprocess.Popen([self.darknet_path + "darknet", self.darknet_path + "cfg/yolov3-tiny.cfg", self.darknet_path + "yolov3-tiny.weights", "/home/lut_99/Desktop/to_classify.jpg"], stdout=subprocess.PIPE)
-        result, errors = process.communicate()
-        self.log("Succesfully classified:")
-        print(result)
-        sys.exit()
+        image = lightnet.Image.from_bytes(open('/home/lut_99/Desktop/to_classify.jpg', 'rb').read())
+        #image = lightnet.Image(img)
+        # Classify
+        boxes = self.model(image)
+        print(boxes)
+
+        return self.draw_boxes(img, boxes)
+
+    def draw_boxes (self, img, boxes):
+        i = 0
+        for class_id, class_name, prob, xywh in boxes:
+            x, y, w, h = xywh
+            # Draw the rectangle
+            cv2.rectangle(img, (int(x-(w/2)), int(y-(h/2))), (int(x+(w/2)), int(y+(h/2))), COLORS[i], 3)
+            cv2.putText(img,class_name,(int(x-(w/2)),int(y-(h/2)-5)), cv2.FONT_HERSHEY_SIMPLEX, 1,COLORS[i],2,cv2.LINE_AA)
+            i = (i + 1) % len(COLORS)
+        return img
 
     # Log data on the output
     def log (self, text):
         print("{} > {}".format(self.name, text))
 
 # Class for streaming video from pepper
-class VideoStreamer ():
+class VideoStreamer (threading.Thread):
     # INit
-    def __init__(self, running_time = -1, framerate = 10.0, frameskip=False, darknet_path=""):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.setDaemon(True)
         self.subscriber = rospy.Subscriber("/pepper_robot/camera/front/image_raw", Image, self.callback)
         self.bridge = CvBridge()
         self.running = False
         self.idle = True
-        self.running_time = running_time
-        self.recogniser = Recogniser(darknet_path)
-        self.framerate = framerate
-        self.frameskip = frameskip
         self.name = "VideoStreamer"
+        self.buffer = (np.array([]), -1)
+        self.counter = 0
 
-        self.log("Created (mode: Pepper webcam)")
+        self.log("Created")
 
     # Log data
     def log (self, message):
@@ -94,49 +126,35 @@ class VideoStreamer ():
     def start (self):
         self.log("Starting...")
         if not self.running:
-            self.buffer = []
             self.running = True
-            self.first_time = True
-            self.start_time = time.time()
-            self.out = "None"
 
-            # Setup video reader
-            self.fourcc = cv2.VideoWriter_fourcc(*'X264')
+            threading.Thread.start(self)
 
             self.log("Started successfully")
-
-            # Now start looping until:
-            #   1) Rospy core is shutting down
-            #   2) The running_time hasn't passed
-            #   3) KeyboardInterrupt
-            try:
-                while not rospy.core.is_shutdown() and (self.running_time == -1 or time.time() - self.start_time <= self.running_time):
-                    rospy.rostime.wallsleep(0.5)
-            except KeyboardInterrupt:
-                rospy.core.signal_shutdown('keyboard interrupt')
-                self.stop()
-            except SystemExit:
-                self.stop()
-            self.stop()
         else:
             self.log("Already started")
+
+    # Run
+    def run (self):
+        # Now start looping until:
+        #   1) Rospy core is shutting down
+        #   2) The running_time hasn't passed
+        #   3) KeyboardInterrupt
+        try:
+            while self.running and not rospy.core.is_shutdown():
+                rospy.rostime.wallsleep(0.5)
+        except KeyboardInterrupt:
+            rospy.core.signal_shutdown('keyboard interrupt')
+            self.stop()
+        except SystemExit:
+            self.stop()
+        if self.running:
+            self.stop()
 
     # Handle the callbacks
     def callback (self, data):
         if self.running:
             self.idle = False
-
-            if self.first_time:
-                self.first_time = False
-                # Finish initing video codec
-                self.out = cv2.VideoWriter("/home/tim/Desktop/output.mp4", self.fourcc, self.framerate, (data.width, data.height))
-                self.log("Successfully inited videowriters")
-
-            timestamp = data.header.stamp.secs
-            if (self.frameskip and time.time() - timestamp >= 1):
-                self.log("Skipped frame to keep up")
-                self.idle = True
-                return
 
             # Get the cv2 image from ros data
             try:
@@ -144,112 +162,160 @@ class VideoStreamer ():
             except CvBridgeError as e:
                 print(e)
 
-            # Analyse the frame
-            face_img = self.recogniser.classify(cv_image)
-            # Save frame
-            self.out.write(face_img)
-            # Show frame
-            cv2.imshow("Img", face_img)
+            # We got a frame, put the frame in the buffer
+            self.buffer = (cv_image, self.counter)
+            self.counter += 1
 
             self.idle = True
-            cv2.waitKey(1)
+
+    # Returns buffer and clears it
+    def get_buffer (self):
+        return self.buffer
 
     # Stop it
     def stop (self):
         self.log("Closing...")
         if self.running:
             self.running = False
-            # Close video stream
-            if self.out != "None":
-                self.out.release()
-            cv2.destroyAllWindows()
-
+            # Wait until idle
+            while not self.idle:
+                pass
             self.log("Closed successfully")
         else:
             self.log("Already closed")
 
-# Reads video from a file and shows it frame-by-frame
-class VideoStreamerFile ():
+# Class for streaming video from pepper
+class VideoStreamerWebcam (threading.Thread):
     # INit
-    def __init__(self, path):
-        self.path = path
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.setDaemon(True)
+        self.running = False
+        self.idle = True
+        self.name = "VideoStreamer"
+        self.buffer = (np.array([]), -1)
+        self.counter = 0
 
-        self.log("Created (mode: file)")
+        self.log("Created")
 
-    # Start streaming
+    # Log data
+    def log (self, message):
+        print("{} > {}".format(self.name, message))
+
+    # Start
     def start (self):
-        cap = cv2.VideoCapture(self.path)
+        self.log("Starting...")
+        if not self.running:
+            self.running = True
+            self.cap = cv2.VideoCapture(0)
 
-        self.log("Opened cap (Press 'Q' to stop)")
+            threading.Thread.start(self)
 
-        while cap.isOpened():
-            ret, frame = cap.read()
+            self.log("Started successfully")
+        else:
+            self.log("Already started")
+
+    # Run
+    def run (self):
+        while self.running and self.cap.isOpened():
+            self.idle = False
+
+            ret, frame = self.cap.read()
             if ret:
-                cv2.imshow("Img", frame)
-            if cv2.waitKey(25) & 0xFF == ord('q'):
-                break
+                # Got a frame
+                self.buffer = (frame, self.counter)
+                self.counter += 1
 
-        cap.release()
-        cv2.destroyAllWindows()
+            self.idle = True
+        if not self.cap.isOpened():
+            self.stop()
 
-        self.log("Completed successfully")
+    # Returns buffer and clears it
+    def get_buffer (self):
+        return self.buffer
+
+    # Stop it
+    def stop (self):
+        self.log("Closing...")
+        if self.running:
+            self.running = False
+            # Wait until idle
+            while not self.idle:
+                pass
+            self.cap.release()
+            self.log("Closed successfully")
+        else:
+            self.log("Already closed")
 
 
 # Main
-def main (runtime, framerate, mode, darknet_path):
+def main (timeout, mode):
     # Do welcoming message
     print("\n########################")
     print("## OBJECT RECOGNITION ##")
     print("##     USING YOLO     ##")
-    print("##   v0.2.3 (alpha)   ##")
+    print("##   v0.3.0 (alpha)   ##")
     print("########################\n")
 
     # Show some data
     print("USING:")
-    print("  - Runtime:         {}s".format(runtime if runtime > -1 else u"\u221E".encode("utf-8")))
-    print("  - Framerate:       {}fps".format(framerate))
-    print("  - Mode:            {}".format(mode))
-    print("  - Path to darknet: {}\n".format(darknet_path))
+    print("  - Timeout: {}s".format(timeout if timeout > -1 else u"\u221E".encode("utf-8")))
+    print("  - Mode:    {}\n".format(mode))
 
     # Init ROS
     rospy.init_node('object_recognition')
 
     # Start the streamer
-    if mode == "***PEPPER-CAMERA***":
-        streamer = VideoStreamer(runtime, framerate, darknet_path=darknet_path)
+    if mode != "WEBCAM":
+        streamer = VideoStreamer()
     else:
-        streamer = VideoStreamerFile(mode)
+        streamer = VideoStreamerWebcam()
     streamer.start()
+    # Get the recogniser
+    recogniser = Recogniser()
+
+    print("\nWaiting for the first frame...")
+    frame, _ = streamer.get_buffer()
+    while len(frame) == 0:
+        frame, _ = streamer.get_buffer()
+    cv2.imshow("Img", frame)
+    cv2.waitKey(1)
+    print("Done, starting run" + (time.strftime(" (%H:%M:%S)") if timeout > -1 else "") + "\n")
+
+    frames = 0
+    then = time.time()
+    while time.time() - then < timeout:
+        # Get frame
+        frame, counter = streamer.get_buffer()
+        # Classify
+        classified_frame = recogniser.classify(frame)
+        cv2.imshow("Img", frame)
+        frames += 1
+        cv2.waitKey(1)
+    stop = time.time()
+    print("\nTimeout, stopping...")
+    streamer.stop()
+    cv2.destroyAllWindows()
+
+    print("Done (avg fps: {}).".format(frames / (stop - then)))
 
 # Entry point
 if __name__ == '__main__':
     # Get arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("-r", "--runtime", type=int, help="The time (in seconds) the script will run")
-    parser.add_argument("-f", "--framerate", help="The framerate of the output file")
-    parser.add_argument("-i", "--inputfile", help="The file that is to be used. Leave empty to use Pepper's camera")
-    parser.add_argument("-p", "--darknet_path", help="The path to darknet (folder)")
+    parser.add_argument("-r", "--timeout", type=int, help="The time (in seconds) the script will run")
+    parser.add_argument("-m", "--mode", help="The mode in which the program will be loaded. Options are: PEPPER_CAMERA and WEBCAM")
     args = parser.parse_args()
 
-    runtime = -1
-    framerate = 10.0
-    mode = "***PEPPER-CAMERA***"
-    darknet_path = "/VirtualShare/darknet/"
-    if args.runtime:
-        runtime = args.runtime
-    if args.framerate:
-        framerate = args.framerate
-    if args.inputfile:
-        mode = args.inputfile
-    if args.darknet_path:
-        darknet_path = args.darknet_path
-
-    # Make sure darknet_path is concluded with "/"
-    if darknet_path[-1] != "/":
-        darknet_path += "/"
+    timeout = -1
+    mode = "PEPPER_CAMERA"
+    if args.timeout:
+        timeout = args.timeout
+    if args.mode:
+        mode = args.mode
 
     try:
-        main(runtime, framerate, mode, darknet_path)
+        main(timeout, mode)
     except KeyboardInterrupt:
         print("\nInterrupted by user")
         sys.exit()
