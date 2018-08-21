@@ -56,6 +56,8 @@ import decimal
 import sys
 import subprocess
 import darknet
+import os
+import ctypes
 
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -75,20 +77,32 @@ class Recogniser ():
     def __init__(self):
         self.name = "YOLO-Recogniser"
 
-        self.network = darknet.load_net("/VirtualShare/darknet/cfg/tiny-yolo.cfg", "/VirtualShare/darknet/tiny-yolo.weights", 0)
-        self.metadata = darknet.load_meta("/VirtualShare/darknet/cfg/coco.data")
+        # Cd to the correct folder
+        os.chdir("/VirtualShare/darknet")
+
+        self.network = darknet.load_net("cfg/yolov3-tiny.cfg", "yolov3-tiny.weights", 0)
+        self.metadata = darknet.load_meta("cfg/coco.data")
 
         self.log("Created")
 
     # Try to classify an image using YOLO
     def classify (self, img):
-        result = darknet.detect(self.network, self.metadata, "/VirtualShare/darknet/data/dog.jpg")
-        print(result)
+        self.log("Preparing image...")
+        # Temporarily save it first
+        with open("/home/lut_99/Desktop/to_classify.jpg") as f:
+            cv2.imwrite("/home/lut_99/Desktop/to_classify.jpg", img)
+
+        self.log("Done, classifying...")
+        result = darknet.detect(self.network, self.metadata, "/home/lut_99/Desktop/to_classify.jpg")
+        self.log("Done, drawing boxes...")
+        new_image = self.draw_boxes(img, result)
+        self.log("Done")
+        return new_image
 
     # Convert the result to draw boxes
     def draw_boxes (self, img, boxes):
         i = 0
-        for class_id, class_name, prob, xywh in boxes:
+        for class_name, prob, xywh in boxes:
             x, y, w, h = xywh
             # Draw the rectangle
             cv2.rectangle(img, (int(x-(w/2)), int(y-(h/2))), (int(x+(w/2)), int(y+(h/2))), COLORS[i], 3)
@@ -262,7 +276,11 @@ def main (timeout, mode):
 
     if mode == "TEST":
         recogniser = Recogniser()
-        recogniser.classify()
+        img = cv2.imread("data/dog.jpg")
+        recogniser.classify(img)
+        cv2.imshow("Img", img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
         return
 
     # Init ROS
@@ -279,8 +297,11 @@ def main (timeout, mode):
 
     print("\nWaiting for the first frame...")
     frame, _ = streamer.get_buffer()
-    while len(frame) == 0:
+    start = time.time()
+    while len(frame) == 0 and time.time() - start <= 30:
         frame, _ = streamer.get_buffer()
+    if time.time() - start > 30:
+        TimeoutError("Timeout occured while waiting for first frame")
     cv2.imshow("Img", frame)
     cv2.waitKey(1)
     print("Done, starting run" + (time.strftime(" (%H:%M:%S)") if timeout > -1 else "") + "\n")
