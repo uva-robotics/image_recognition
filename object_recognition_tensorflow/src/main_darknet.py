@@ -45,6 +45,11 @@
 ##    to the possibilities to recompile darknet as  ##
 ##    required                                      ##
 ######################################################
+## v0.4.1:                                          ##
+##  o Success implementing YOLO using darknet.py    ##
+##    Will need to have a method to convert numpy   ##
+##    list to C list                                ##
+######################################################
 
 import rospy
 import argparse
