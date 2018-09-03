@@ -269,7 +269,7 @@ def main (timeout, mode):
     print("\n########################")
     print("## OBJECT RECOGNITION ##")
     print("##     USING YOLO     ##")
-    print("##   v0.4.0 (alpha)   ##")
+    print("##   v0.4.1 (alpha)   ##")
     print("########################\n")
 
     # Show some data
