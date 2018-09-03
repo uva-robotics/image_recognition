@@ -299,7 +299,7 @@ def main (timeout, mode):
     recogniser = Recogniser()
 
     print("\nWaiting for the first frame...")
-    frame, _ = streamer.get_buffer()
+    frame = streamer.get_buffer()
     start = time.time()
     while len(frame) == 0 and time.time() - start <= 30:
         frame = streamer.get_buffer()
@@ -313,7 +313,7 @@ def main (timeout, mode):
     then = time.time()
     while time.time() - then < timeout:
         # Get frame
-        frame, counter = streamer.get_buffer()
+        frame = streamer.get_buffer()
         # Classify
         classified_frame = recogniser.classify(frame)
         cv2.imshow("Img", frame)
