@@ -49,6 +49,8 @@
 ##  o Success implementing YOLO using darknet.py    ##
 ##    Will need to have a method to convert numpy   ##
 ##    list to C list                                ##
+##  - Removed obsolete debug counters in both       ##
+##    streamers                                     ##
 ######################################################
 
 import rospy
@@ -130,8 +132,7 @@ class VideoStreamer (threading.Thread):
         self.running = False
         self.idle = True
         self.name = "VideoStreamer"
-        self.buffer = (np.array([]), -1)
-        self.counter = 0
+        self.buffer = np.array([])
 
         self.log("Created")
 
@@ -180,8 +181,7 @@ class VideoStreamer (threading.Thread):
                 print(e)
 
             # We got a frame, put the frame in the buffer
-            self.buffer = (cv_image, self.counter)
-            self.counter += 1
+            self.buffer = cv_image
 
             self.idle = True
 
@@ -210,8 +210,7 @@ class VideoStreamerWebcam (threading.Thread):
         self.running = False
         self.idle = True
         self.name = "VideoStreamer"
-        self.buffer = (np.array([]), -1)
-        self.counter = 0
+        self.buffer = np.array([])
 
         self.log("Created")
 
@@ -240,8 +239,7 @@ class VideoStreamerWebcam (threading.Thread):
             ret, frame = self.cap.read()
             if ret:
                 # Got a frame
-                self.buffer = (frame, self.counter)
-                self.counter += 1
+                self.buffer = frame
 
             self.idle = True
         if not self.cap.isOpened():
@@ -304,7 +302,7 @@ def main (timeout, mode):
     frame, _ = streamer.get_buffer()
     start = time.time()
     while len(frame) == 0 and time.time() - start <= 30:
-        frame, _ = streamer.get_buffer()
+        frame = streamer.get_buffer()
     if time.time() - start > 30:
         TimeoutError("Timeout occured while waiting for first frame")
     cv2.imshow("Img", frame)
