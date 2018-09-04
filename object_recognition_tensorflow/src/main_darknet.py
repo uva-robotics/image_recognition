@@ -54,6 +54,7 @@
 ######################################################
 ## v0.4.2:                                          ##
 ##  + Added custom darknet path support             ##
+##  o Changed directory back after loading darknet  ##
 ######################################################
 
 import rospy
@@ -88,11 +89,16 @@ class Recogniser ():
         self.name = "YOLO-Recogniser"
 
         # Cd to the correct folder
+        current_path = os.getcwd()
         os.chdir(darknet_path)
 
+        # Load the darknet path
         self.network = darknet.load_net("cfg/yolov3-tiny.cfg", "yolov3-tiny.weights", 0)
         self.metadata = darknet.load_meta("cfg/coco.data")
         self.path = darknet_path
+
+        # Change back to current_path
+        os.chdir(current_path)
 
         self.log("Created")
 
@@ -273,7 +279,7 @@ def main (timeout, mode, darknet_path):
     print("\n########################")
     print("## OBJECT RECOGNITION ##")
     print("##     USING YOLO     ##")
-    print("##   v0.4.1 (alpha)   ##")
+    print("##   v0.4.2 (alpha)   ##")
     print("########################\n")
 
     # Show some data
