@@ -52,6 +52,9 @@
 ##  - Removed obsolete debug counters in both       ##
 ##    streamers                                     ##
 ######################################################
+## v0.4.2:                                          ##
+##  + Added custom darknet path support             ##
+######################################################
 
 import rospy
 import argparse
@@ -81,14 +84,15 @@ COLORS = [
 # Class for recognising objects
 class Recogniser ():
     # INit
-    def __init__(self):
+    def __init__(self, darknet_path):
         self.name = "YOLO-Recogniser"
 
         # Cd to the correct folder
-        os.chdir("/VirtualShare/darknet")
+        os.chdir(darknet_path)
 
         self.network = darknet.load_net("cfg/yolov3-tiny.cfg", "yolov3-tiny.weights", 0)
         self.metadata = darknet.load_meta("cfg/coco.data")
+        self.path = darknet_path
 
         self.log("Created")
 
@@ -264,7 +268,7 @@ class VideoStreamerWebcam (threading.Thread):
 
 
 # Main
-def main (timeout, mode):
+def main (timeout, mode, darknet_path):
     # Do welcoming message
     print("\n########################")
     print("## OBJECT RECOGNITION ##")
@@ -278,7 +282,7 @@ def main (timeout, mode):
     print("  - Mode:    {}\n".format(mode))
 
     if mode == "TEST":
-        recogniser = Recogniser()
+        recogniser = Recogniser(darknet_path)
         img = cv2.imread("data/dog.jpg")
         recogniser.classify(img)
         cv2.imshow("Img", img)
@@ -296,7 +300,7 @@ def main (timeout, mode):
         streamer = VideoStreamerWebcam()
     streamer.start()
     # Get the recogniser
-    recogniser = Recogniser()
+    recogniser = Recogniser(darknet_path)
 
     print("\nWaiting for the first frame...")
     frame = streamer.get_buffer()
@@ -332,17 +336,29 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--timeout", type=int, help="The time (in seconds) the script will run")
     parser.add_argument("-m", "--mode", help="The mode in which the program will be loaded. Options are: PEPPER_CAMERA, WEBCAM and TEST")
+    parser.add_argument("-d", "--darknet", help="The path to darknet (absolute)")
     args = parser.parse_args()
 
     timeout = -1
     mode = "PEPPER_CAMERA"
+    darknet_path = "/VirtualShare/darknet"
     if args.timeout:
         timeout = args.timeout
     if args.mode:
         mode = args.mode
+    if args.darknet:
+        darknet_path = args.darknet
+
+    # Make sure darknet_path ends with "/"
+    if darknet_path[-1] != "/":
+        darknet_path += "/"
+    # Check if the directory exists
+    if not os.path.exists(darknet_path):
+        print("Folder '" + darknet_path + "' does not exist, cannot continue")
+        sys.exit()
 
     try:
-        main(timeout, mode)
+        main(timeout, mode, darknet_path)
     except KeyboardInterrupt:
         print("\nInterrupted by user")
         sys.exit()
