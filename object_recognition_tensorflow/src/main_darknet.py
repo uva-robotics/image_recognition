@@ -284,8 +284,9 @@ def main (timeout, mode, darknet_path):
 
     # Show some data
     print("USING:")
-    print("  - Timeout: {}s".format(timeout if timeout > -1 else u"\u221E".encode("utf-8")))
-    print("  - Mode:    {}\n".format(mode))
+    print("  - Timeout:      {}s".format(timeout if timeout > -1 else u"\u221E".encode("utf-8")))
+    print("  - Mode:         {}".format(mode))
+    print("  - Darknet path: {}\n").format(darknet_path)
 
     if mode == "TEST":
         recogniser = Recogniser(darknet_path)
@@ -308,7 +309,7 @@ def main (timeout, mode, darknet_path):
     # Get the recogniser
     recogniser = Recogniser(darknet_path)
 
-    print("\nWaiting for the first frame...")
+    print("\nWaiting for the first frame (30 sec timeout)...")
     frame = streamer.get_buffer()
     start = time.time()
     while len(frame) == 0 and time.time() - start <= 30:
