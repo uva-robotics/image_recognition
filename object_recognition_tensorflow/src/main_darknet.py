@@ -350,7 +350,7 @@ if __name__ == '__main__':
 
     timeout = -1
     mode = "PEPPER_CAMERA"
-    # darknet_path = "/VirtualShare/darknet"
+    darknet_path = "/home/spijkervet/sdk/darknet"
     if args.timeout:
         timeout = args.timeout
     if args.mode:
