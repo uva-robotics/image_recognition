@@ -56,7 +56,7 @@ class FaceRecognition():
 
         face_names = []
         for face_encoding in face_encodings:
-            matches = face_recognition.compare_faces(self.face_encodings, face_encoding, tolerance=0.8)
+            matches = face_recognition.compare_faces(self.face_encodings, face_encoding, tolerance=0.6)
 
             if True in matches:
                 index = matches.index(True)

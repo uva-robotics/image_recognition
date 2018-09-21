@@ -70,6 +70,7 @@ import darknet
 import os
 import ctypes
 
+from sensor_msgs.msg import CompressedImage
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 
@@ -106,18 +107,18 @@ class Recogniser ():
     def classify (self, img):
         self.log("Preparing image...")
         # Temporarily save it first
-        with open("/home/lut_99/Desktop/to_classify.jpg") as f:
-            cv2.imwrite("/home/lut_99/Desktop/to_classify.jpg", img)
+        with open("/tmp/to_classify.jpg", "w") as f:
+            cv2.imwrite("/tmp/to_classify.jpg", img)
 
         self.log("Done, classifying...")
-        result = darknet.detect(self.network, self.metadata, "/home/lut_99/Desktop/to_classify.jpg")
+        result = darknet.detect(self.network, self.metadata, "/tmp/to_classify.jpg")
         self.log("Done, drawing boxes...")
         new_image = self.draw_boxes(img, result)
         self.log("Done")
         return new_image
 
     # Convert the result to draw boxes
-    def draw_boxes (self, img, boxes):
+    def draw_boxes(self, img, boxes):
         i = 0
         for class_name, prob, xywh in boxes:
             x, y, w, h = xywh
@@ -137,7 +138,8 @@ class VideoStreamer (threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.setDaemon(True)
-        self.subscriber = rospy.Subscriber("/pepper_robot/camera/front/image_raw", Image, self.callback)
+        rospy.Subscriber("/pepper_robot/camera/front/image_raw/compressed", CompressedImage, self.callback, queue_size=1)
+
         self.bridge = CvBridge()
         self.running = False
         self.idle = True
@@ -180,19 +182,19 @@ class VideoStreamer (threading.Thread):
             self.stop()
 
     # Handle the callbacks
-    def callback (self, data):
+    def callback(self, data):
         if self.running:
             self.idle = False
 
             # Get the cv2 image from ros data
             try:
-                cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+                image_array = np.fromstring(data.data, np.uint8)
+                cv_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
             except CvBridgeError as e:
                 print(e)
 
             # We got a frame, put the frame in the buffer
             self.buffer = cv_image
-
             self.idle = True
 
     # Returns buffer and clears it
@@ -348,7 +350,7 @@ if __name__ == '__main__':
 
     timeout = -1
     mode = "PEPPER_CAMERA"
-    darknet_path = "/VirtualShare/darknet"
+    # darknet_path = "/VirtualShare/darknet"
     if args.timeout:
         timeout = args.timeout
     if args.mode:
