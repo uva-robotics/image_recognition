@@ -56,6 +56,10 @@
 ##  + Added custom darknet path support             ##
 ##  o Changed directory back after loading darknet  ##
 ######################################################
+## v0.5.0:                                          ##
+##  o Changed passing of images to darknet to       ##
+##    directly rather than through temporary file   ##
+######################################################
 
 import rospy
 import argparse
@@ -106,12 +110,11 @@ class Recogniser ():
     # Try to classify an image using YOLO
     def classify (self, img):
         self.log("Preparing image...")
-        # Temporarily save it first
-        with open("/tmp/to_classify.jpg", "w") as f:
-            cv2.imwrite("/tmp/to_classify.jpg", img)
+        # Convert to c image
+        c_img = darknet.nparray_to_image(img)
 
         self.log("Done, classifying...")
-        result = darknet.detect(self.network, self.metadata, "/tmp/to_classify.jpg")
+        result = darknet.detect(self.network, self.metadata, c_img)
         self.log("Done, drawing boxes...")
         new_image = self.draw_boxes(img, result)
         self.log("Done")
@@ -350,7 +353,7 @@ if __name__ == '__main__':
 
     timeout = -1
     mode = "PEPPER_CAMERA"
-    darknet_path = "/home/spijkervet/sdk/darknet"
+    darknet_path = "/home/tim/uva-robotics/darknet"
     if args.timeout:
         timeout = args.timeout
     if args.mode:
