@@ -1,6 +1,8 @@
 from ctypes import *
 import math
 import random
+import os
+import sys
 
 def sample(probs):
     s = sum(probs)
@@ -43,8 +45,21 @@ class METADATA(Structure):
                 ("names", POINTER(c_char_p))]
 
 
-#lib = CDLL("/home/pjreddie/documents/darknet/libdarknet.so", RTLD_GLOBAL)
-lib = CDLL("/home/tim/uva-robotics/darknet/libdarknet.so", RTLD_GLOBAL)
+path = "/home/tim/uva-robotics/vendor/darknet/libdarknet.so"
+# Attempt to get the darknet path
+try:
+    with open(os.path.dirname(sys.argv[0]) + "/darknet_path.txt", "r") as f:
+        path = f.read()
+    path = path.split("\n")[0]
+    # Make sure it ends in '/'
+    if path[-1] != "/":
+        path += "/"
+    path += "libdarknet.so"
+    print(path)
+except IOError as e:
+    print("(Could not load darknet path: {}" + e.message)
+    print("Using default instead: {})".format(path))
+lib = CDLL(path, RTLD_GLOBAL)
 lib.network_width.argtypes = [c_void_p]
 lib.network_width.restype = c_int
 lib.network_height.argtypes = [c_void_p]

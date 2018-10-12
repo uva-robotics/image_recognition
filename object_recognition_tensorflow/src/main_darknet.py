@@ -348,22 +348,29 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--timeout", type=int, help="The time (in seconds) the script will run")
     parser.add_argument("-m", "--mode", help="The mode in which the program will be loaded. Options are: PEPPER_CAMERA, WEBCAM and TEST")
-    parser.add_argument("-d", "--darknet", help="The path to darknet (absolute)")
     args = parser.parse_args()
 
     timeout = -1
     mode = "PEPPER_CAMERA"
-    darknet_path = "/home/tim/uva-robotics/darknet"
+    darknet_path = "/home/tim/uva-robotics/vendor/darknet/"
     if args.timeout:
         timeout = args.timeout
     if args.mode:
         mode = args.mode
-    if args.darknet:
-        darknet_path = args.darknet
 
-    # Make sure darknet_path ends with "/"
-    if darknet_path[-1] != "/":
-        darknet_path += "/"
+    # Load the darknet path
+    try:
+        with open(os.path.dirname(sys.argv[0]) + "/darknet_path.txt", "r") as f:
+            darknet_path = f.read()
+        darknet_path = darknet_path.split("\n")[0]
+        # Make sure darknet_path ends with "/"
+        if darknet_path[-1] != "/":
+            darknet_path += "/"
+        print("(Loaded darknetpath {})".format(darknet_path))
+    except IOError as e:
+        print("(Could not load darknetpath: {}".format(e.message))
+        print("Using default instead: {})".format(darknet_path))
+
     # Check if the directory exists
     if not os.path.exists(darknet_path):
         print("Folder '" + darknet_path + "' does not exist, cannot continue")
